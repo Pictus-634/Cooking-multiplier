@@ -1,22 +1,36 @@
-<!DOCTYPE = html>
-<html lang = "ja">
-  <meta charset = "utf-8">
-  <head>
-    <title>
-      料理用計算機
-    </title>
-  </head>
-  <body>
-    <input type="text" id="input_A" placeholder="ENTER INPUTS...">
-    <input type="text" id="input_B" placeholder="multiply rate>
-    <button id="send">caculate</button>
-    <p><span id="output"></span></p>
-    <script>
-      const baseAmount = document.getElementById("input_A")
-      const multiplier = document.getElementById("input_B")
-      let output = document.getElementById("output")
-      function outputIt(a,b){
-        return let output=(a*b);
-      }
-    </script>
-  </body>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>料理用計算機</title>
+</head>
+<body>
+  <h2>料理用計算機</h2>
+
+  <input type="number" id="input_A" placeholder="ENTER INPUTS...">
+  <input type="number" id="input_B" placeholder="MULTIPLY RATE">
+  <button id="send">Calculate</button>
+
+  <p>結果: <span id="output"></span></p>
+
+  <script>
+    const baseAmount = document.getElementById("input_A");
+    const multiplier = document.getElementById("input_B");
+    const output = document.getElementById("output");
+    const sendBtn = document.getElementById("send");
+
+    function calculate() {
+      const a = parseFloat(baseAmount.value) || 0;
+      const b = parseFloat(multiplier.value) || 0;
+      const result = a * b;
+      output.textContent = result;
+    }
+
+    sendBtn.addEventListener("click", calculate);
+
+    // Enterキーでも計算できるように
+    baseAmount.addEventListener("keydown", e => { if (e.key === "Enter") calculate(); });
+    multiplier.addEventListener("keydown", e => { if (e.key === "Enter") calculate(); });
+  </script>
+</body>
+</html>

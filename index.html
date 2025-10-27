@@ -2,10 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>AI Tetris with Attack Display</title>
+<title>AI Tetris with Attack Display (Fixed)</title>
 <style>
   body {
-    font-family: monospace;
     background: #000;
     color: #fff;
     display: flex;
@@ -13,6 +12,7 @@
     align-items: center;
     height: 100vh;
     margin: 0;
+    font-family: monospace;
   }
   #container {
     position: relative;
@@ -187,14 +187,20 @@ function findBestMove(player,arena){
     const matrix=cloneMatrix(player.matrix);
     for(let i=0;i<r;i++) rotate(matrix,1);
     for(let x=-2;x<arena[0].length;x++){
-      let y=0;
-      while(!collide(arena,{matrix,pos:{x,y:y+1}})) y++;
+      let testPlayer={matrix,pos:{x:x,y:0}};
+      if(collide(arena,testPlayer)) continue;
+      // 正しく下まで落とす
+      while(!collide(arena,testPlayer)){
+        testPlayer.pos.y++;
+      }
+      testPlayer.pos.y--; // 1マス戻す
+      if(testPlayer.pos.y<0) continue;
       const newArena=cloneMatrix(arena);
-      merge(newArena,{matrix,pos:{x,y}});
+      merge(newArena,testPlayer);
       const score=evaluateArena(newArena);
       if(score>bestScore){
         bestScore=score;
-        bestMove={rotation:r,pos:{x,y}};
+        bestMove={rotation:r,pos:{x:testPlayer.pos.x,y:testPlayer.pos.y}};
       }
     }
   }
@@ -212,7 +218,7 @@ function playerDropAI(){
   playerReset();
 }
 
-let dropCounter=0, dropInterval=200;
+let dropCounter=0, dropInterval=250;
 let lastTime=0;
 function update(time=0){
   const delta=time-lastTime;
@@ -231,3 +237,4 @@ update();
 </script>
 </body>
 </html>
+

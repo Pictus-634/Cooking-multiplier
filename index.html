@@ -1,36 +1,233 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <title>料理用計算機</title>
+<meta charset="UTF-8">
+<title>AI Tetris with Attack Display</title>
+<style>
+  body {
+    font-family: monospace;
+    background: #000;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  #container {
+    position: relative;
+  }
+  canvas {
+    border: 2px solid #fff;
+    background: #111;
+  }
+  #attackDisplay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.6);
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 16px;
+  }
+</style>
 </head>
 <body>
-  <h2>料理用計算機</h2>
+<div id="container">
+  <canvas id="tetris" width="240" height="400"></canvas>
+  <div id="attackDisplay">攻撃列(APM): <span id="attack">0</span></div>
+</div>
 
-  <input type="number" id="input_A" placeholder="ENTER INPUTS...">
-  <input type="number" id="input_B" placeholder="MULTIPLY RATE">
-  <button id="send">Calculate</button>
+<script>
+const canvas = document.getElementById('tetris');
+const context = canvas.getContext('2d');
+context.scale(20, 20);
 
-  <p>結果: <span id="output"></span></p>
+const colors = [null,'#FF0D72','#0DC2FF','#0DFF72','#F538FF','#FF8E0D','#FFE138','#3877FF'];
+const arena = createMatrix(12, 20);
 
-  <script>
-    const baseAmount = document.getElementById("input_A");
-    const multiplier = document.getElementById("input_B");
-    const output = document.getElementById("output");
-    const sendBtn = document.getElementById("send");
+let attack = 0;
+const attackDisplay = document.getElementById('attack');
 
-    function calculate() {
-      const a = parseFloat(baseAmount.value) || 0;
-      const b = parseFloat(multiplier.value) || 0;
-      const result = a * b;
-      output.textContent = result;
+const player = {pos: {x:0,y:0}, matrix: null};
+
+function createMatrix(w,h){
+  const matrix=[];
+  while(h--) matrix.push(new Array(w).fill(0));
+  return matrix;
+}
+
+function createPiece(type){
+  if(type==='T') return [[0,0,0],[1,1,1],[0,1,0]];
+  if(type==='O') return [[2,2],[2,2]];
+  if(type==='L') return [[0,3,0],[0,3,0],[0,3,3]];
+  if(type==='J') return [[0,4,0],[0,4,0],[4,4,0]];
+  if(type==='I') return [[0,5,0,0],[0,5,0,0],[0,5,0,0],[0,5,0,0]];
+  if(type==='S') return [[0,6,6],[6,6,0],[0,0,0]];
+  if(type==='Z') return [[7,7,0],[0,7,7],[0,0,0]];
+}
+
+function drawMatrix(matrix,offset){
+  matrix.forEach((row,y)=>{
+    row.forEach((value,x)=>{
+      if(value!==0){
+        context.fillStyle=colors[value];
+        context.fillRect(x+offset.x,y+offset.y,1,1);
+      }
+    });
+  });
+}
+
+function draw(){
+  context.fillStyle='#000';
+  context.fillRect(0,0,canvas.width,canvas.height);
+  drawMatrix(arena,{x:0,y:0});
+  drawMatrix(player.matrix,player.pos);
+}
+
+function merge(arena,player){
+  player.matrix.forEach((row,y)=>{
+    row.forEach((value,x)=>{
+      if(value!==0){
+        arena[y+player.pos.y][x+player.pos.x]=value;
+      }
+    });
+  });
+}
+
+function collide(arena,player){
+  const m=player.matrix;
+  const o=player.pos;
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<m[y].length;x++){
+      if(m[y][x]!==0 &&
+         (arena[y+o.y] && arena[y+o.y][x+o.x])!==0){
+        return true;
+      }
     }
+  }
+  return false;
+}
 
-    sendBtn.addEventListener("click", calculate);
+function arenaSweep(){
+  let lines=0;
+  outer: for(let y=arena.length-1;y>=0;y--){
+    for(let x=0;x<arena[y].length;x++){
+      if(arena[y][x]===0){
+        continue outer;
+      }
+    }
+    const row=arena.splice(y,1)[0].fill(0);
+    arena.unshift(row);
+    y++;
+    lines++;
+  }
+  if(lines>0){
+    attack+=lines;
+    attackDisplay.textContent=attack;
+  }
+}
 
-    // Enterキーでも計算できるように
-    baseAmount.addEventListener("keydown", e => { if (e.key === "Enter") calculate(); });
-    multiplier.addEventListener("keydown", e => { if (e.key === "Enter") calculate(); });
-  </script>
+function rotate(matrix,dir){
+  for(let y=0;y<matrix.length;y++){
+    for(let x=0;x<y;x++){
+      [matrix[x][y],matrix[y][x]]=[matrix[y][x],matrix[x][y]];
+    }
+  }
+  if(dir>0) matrix.forEach(row=>row.reverse());
+  else matrix.reverse();
+}
+
+function playerReset(){
+  const pieces='TJLOSZI';
+  player.matrix=createPiece(pieces[Math.floor(Math.random()*pieces.length)]);
+  player.pos.y=0;
+  player.pos.x=(arena[0].length/2|0)-(player.matrix[0].length/2|0);
+  if(collide(arena,player)){
+    arena.forEach(row=>row.fill(0));
+    attack=0;
+    attackDisplay.textContent=0;
+  }
+}
+
+function evaluateArena(arena){
+  let holes=0, heightSum=0, bumpiness=0;
+  const heights=new Array(arena[0].length).fill(0);
+
+  for(let x=0;x<arena[0].length;x++){
+    for(let y=0;y<arena.length;y++){
+      if(arena[y][x]!==0){
+        heights[x]=arena.length-y;
+        break;
+      }
+    }
+  }
+  for(let x=0;x<arena[0].length-1;x++){
+    bumpiness+=Math.abs(heights[x]-heights[x+1]);
+  }
+  for(let x=0;x<arena[0].length;x++){
+    let block=false;
+    for(let y=0;y<arena.length;y++){
+      if(arena[y][x]!==0) block=true;
+      else if(block) holes++;
+    }
+  }
+  heightSum=heights.reduce((a,b)=>a+b,0);
+  return -0.5*heightSum - 0.7*holes - 0.3*bumpiness;
+}
+
+function cloneMatrix(matrix){
+  return matrix.map(row=>row.slice());
+}
+
+function findBestMove(player,arena){
+  let bestScore=-Infinity;
+  let bestMove=null;
+  for(let r=0;r<4;r++){
+    const matrix=cloneMatrix(player.matrix);
+    for(let i=0;i<r;i++) rotate(matrix,1);
+    for(let x=-2;x<arena[0].length;x++){
+      let y=0;
+      while(!collide(arena,{matrix,pos:{x,y:y+1}})) y++;
+      const newArena=cloneMatrix(arena);
+      merge(newArena,{matrix,pos:{x,y}});
+      const score=evaluateArena(newArena);
+      if(score>bestScore){
+        bestScore=score;
+        bestMove={rotation:r,pos:{x,y}};
+      }
+    }
+  }
+  return bestMove;
+}
+
+function playerDropAI(){
+  const move=findBestMove(player,arena);
+  if(!move) return;
+  for(let i=0;i<move.rotation;i++) rotate(player.matrix,1);
+  player.pos.x=move.pos.x;
+  player.pos.y=move.pos.y;
+  merge(arena,player);
+  arenaSweep();
+  playerReset();
+}
+
+let dropCounter=0, dropInterval=200;
+let lastTime=0;
+function update(time=0){
+  const delta=time-lastTime;
+  lastTime=time;
+  dropCounter+=delta;
+  if(dropCounter>dropInterval){
+    playerDropAI();
+    dropCounter=0;
+  }
+  draw();
+  requestAnimationFrame(update);
+}
+
+playerReset();
+update();
+</script>
 </body>
 </html>
